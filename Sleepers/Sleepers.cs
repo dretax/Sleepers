@@ -36,7 +36,7 @@ namespace Sleepers
 
         public override Version Version
         {
-            get { return new Version("1.0"); }
+            get { return new Version("1.1"); }
         }
 
         public override void Initialize()
@@ -144,12 +144,10 @@ namespace Sleepers
                             playerAvatar.AwayEvent.HasTimestamp)
                         {
 
-                            //There's an internal SleepingAvatar.Close method that takes a ulong for the playerID- we call that with
-                            //reflection
-                            MethodInfo info = typeof (SleepingAvatar).GetMethod("Close",
-                                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
-                            SleepingAvatar.TransientData transientData =
-                                (SleepingAvatar.TransientData) info.Invoke(null, new object[] {id});
+                            //There's an internal SleepingAvatar.Close method that takes a ulong for the playerID
+                            SleepingAvatar.TransientData transientData = SleepingAvatar.Close(id);
+                            //MethodInfo info = typeof (SleepingAvatar).GetMethod("Close", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+                            //SleepingAvatar.TransientData transientData = (SleepingAvatar.TransientData) info.Invoke(null, new object[] {id});
 
                             if (transientData.exists)
                             {
