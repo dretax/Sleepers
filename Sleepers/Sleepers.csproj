@@ -31,16 +31,16 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Assembly-CSharp">
-      <HintPath>E:\Users\DreTaX\Documents\Visual Studio 2013\Projects\FougeriteProject\bin\Assembly-CSharp.dll</HintPath>
+      <HintPath>..\..\..\..\Visual Studio 2013\FougeriteProject\bin\Assembly-CSharp.dll</HintPath>
     </Reference>
     <Reference Include="Facepunch.ID">
-      <HintPath>E:\Users\DreTaX\Documents\Visual Studio 2013\Projects\FougeriteProject\References\Facepunch.ID.dll</HintPath>
+      <HintPath>..\..\..\..\Visual Studio 2013\FougeriteProject\bin\Facepunch.ID.dll</HintPath>
     </Reference>
     <Reference Include="Fougerite">
-      <HintPath>E:\Users\DreTaX\Documents\Visual Studio 2013\Projects\FougeriteProject\bin\Fougerite.dll</HintPath>
+      <HintPath>..\..\..\..\Visual Studio 2013\FougeriteProject\bin\Fougerite.dll</HintPath>
     </Reference>
     <Reference Include="Google.ProtocolBuffers">
-      <HintPath>E:\Users\DreTaX\Documents\Visual Studio 2013\Projects\FougeriteProject\References\Google.ProtocolBuffers.dll</HintPath>
+      <HintPath>..\..\..\..\Visual Studio 2013\FougeriteProject\bin\Google.ProtocolBuffers.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -51,7 +51,7 @@
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
     <Reference Include="UnityEngine">
-      <HintPath>E:\Users\DreTaX\Documents\Visual Studio 2013\Projects\FougeriteProject\bin\UnityEngine.dll</HintPath>
+      <HintPath>..\..\..\..\Visual Studio 2013\FougeriteProject\bin\UnityEngine.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>

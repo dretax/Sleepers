@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using System.Timers;
 using Fougerite;
+using Fougerite.Permissions;
 using RustProto;
 using UnityEngine;
 
@@ -11,13 +12,13 @@ namespace Sleepers
 {
     public class Sleepers : Fougerite.Module
     {
+        private static Sleepers _instance;
         public int sleeperLifeInMinutes = 5;
         public int timerElapse = 60000;
         public bool Debug = false;
         public IniParser Settings;
         public Timer _timer;
-        public readonly Dictionary<ulong, int> data = new Dictionary<ulong,int>();
-        public readonly Dictionary<ulong, Vector3> data2 = new Dictionary<ulong, Vector3>();
+        public readonly Dictionary<ulong, double> Data = new Dictionary<ulong, double>();
 
         public override string Name
         {
@@ -36,35 +37,12 @@ namespace Sleepers
 
         public override Version Version
         {
-            get { return new Version("1.1"); }
+            get { return new Version("1.2"); }
         }
 
         public override void Initialize()
         {
-            if (!File.Exists(Path.Combine(ModuleFolder, "Settings.ini")))
-            {
-                File.Create(Path.Combine(ModuleFolder, "Settings.ini")).Dispose();
-                Settings = new IniParser(Path.Combine(ModuleFolder, "Settings.ini"));
-                Settings.AddSetting("Settings", "sleeperLifeInMinutes", sleeperLifeInMinutes.ToString());
-                Settings.AddSetting("Settings", "timerElapse", timerElapse.ToString());
-                Settings.AddSetting("Settings", "Debug", Debug.ToString());
-                Settings.Save();
-            }
-            else
-            {
-                try
-                {
-                    Settings = new IniParser(Path.Combine(ModuleFolder, "Settings.ini"));
-                    sleeperLifeInMinutes = int.Parse(Settings.GetSetting("Settings", "sleeperLifeInMinutes"));
-                    timerElapse = int.Parse(Settings.GetSetting("Settings", "timerElapse"));
-                    Debug = Settings.GetBoolSetting("Settings", "Debug");
-                }
-                catch
-                {
-                    Logger.LogError("[Sleepers] Missing config options! Remove the config and restart the server!");
-                }
-            }
-            sleeperLifeInMinutes = sleeperLifeInMinutes * 60000;
+            _instance = this;
             Fougerite.Hooks.OnPlayerDisconnected += OnPlayerDisconnected;
             Fougerite.Hooks.OnPlayerConnected += OnPlayerConnected;
             Fougerite.Hooks.OnCommand += OnCommand;
@@ -81,17 +59,51 @@ namespace Sleepers
             _timer.Dispose();
         }
 
-        public void OnCommand(Fougerite.Player player, string cmd, string[] args)
+        public void ReloadConfig()
         {
-            if (player.Admin)
+            if (!File.Exists(Path.Combine(ModuleFolder, "Settings.ini")))
             {
-                if (cmd == "sleepers")
+                File.Create(Path.Combine(ModuleFolder, "Settings.ini")).Dispose();
+                Settings = new IniParser(Path.Combine(ModuleFolder, "Settings.ini"));
+                Settings.AddSetting("Settings", "sleeperLifeInMinutes", sleeperLifeInMinutes.ToString());
+                Settings.AddSetting("Settings", "timerElapse", timerElapse.ToString());
+                Settings.AddSetting("Settings", "Debug", Debug.ToString());
+                Settings.Save();
+                sleeperLifeInMinutes = int.Parse(Settings.GetSetting("Settings", "sleeperLifeInMinutes"));
+                sleeperLifeInMinutes = sleeperLifeInMinutes * 60;
+                timerElapse = int.Parse(Settings.GetSetting("Settings", "timerElapse"));
+                Debug = Settings.GetBoolSetting("Settings", "Debug");
+            }
+            else
+            {
+                try
                 {
                     Settings = new IniParser(Path.Combine(ModuleFolder, "Settings.ini"));
                     sleeperLifeInMinutes = int.Parse(Settings.GetSetting("Settings", "sleeperLifeInMinutes"));
-                    sleeperLifeInMinutes = sleeperLifeInMinutes * 60000;
+                    sleeperLifeInMinutes = sleeperLifeInMinutes * 60;
                     timerElapse = int.Parse(Settings.GetSetting("Settings", "timerElapse"));
                     Debug = Settings.GetBoolSetting("Settings", "Debug");
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError("[Sleepers] Missing config options! Remove the config and restart the server! " + ex);
+                }
+            }
+        }
+
+        public static Sleepers GetInstance()
+        {
+            return _instance;
+        }
+
+        public void OnCommand(Fougerite.Player player, string cmd, string[] args)
+        {
+            if (cmd == "sleepers")
+            {
+                if (player.Admin || PermissionSystem.GetPermissionSystem()
+                    .PlayerHasPermission(player, "sleepers.reload"))
+                {
+                    ReloadConfig();
                     player.Message("Sleepers Plugin Reloaded!");
                 }
             }
@@ -99,75 +111,64 @@ namespace Sleepers
 
         public void OnPlayerConnected(Fougerite.Player player)
         {
-            if (data.ContainsKey(player.UID))
+            if (Data.ContainsKey(player.UID))
             {
-                data.Remove(player.UID);
-            }
-            if (data2.ContainsKey(player.UID))
-            {
-                data2.Remove(player.UID);
+                Data.Remove(player.UID);
             }
         }
 
         public void OnPlayerDisconnected(Fougerite.Player player)
         {
-            data[player.UID] = System.Environment.TickCount;
-            data2[player.UID] = player.DisconnectLocation;
+            Data[player.UID] = TimeSpan.FromTicks(DateTime.Now.Ticks).TotalSeconds;
         }
 
         public void RunC(object sender, ElapsedEventArgs e)
         {
             _timer.Dispose();
-            var systick = System.Environment.TickCount;
             List<ulong> idstoremove = new List<ulong>();
-            foreach (var id in data.Keys)
+            foreach (var id in Data.Keys)
             {
-                var playercd = data[id];
-                var location = data2[id];
-                var sleepers = UnityEngine.Physics.OverlapSphere(location, 2f);
-                foreach (var sleeper in sleepers)
+                double playercd = Data[id];
+
+                double calc = TimeSpan.FromTicks(DateTime.Now.Ticks).TotalSeconds - playercd;
+
+                if (calc >= sleeperLifeInMinutes)
                 {
-                    var name = sleeper.name;
-                    if (!name.ToLower().Contains("malesleeper"))
-                    {
-                        continue;
-                    }
-                    bool remove = double.IsNaN(systick - playercd) || (systick - playercd) < 0;
-                    var calc = systick - playercd;
-                    if (calc >= sleeperLifeInMinutes || remove)
-                    {
-                        RustProto.Avatar playerAvatar = NetUser.LoadAvatar(id);
+                    RustProto.Avatar playerAvatar = NetUser.LoadAvatar(id);
 
-                        //Check if the player has a SLUMBER away event & a timestamp that's older than the oldest permitted, calculated above
-                        if (playerAvatar != null && playerAvatar.HasAwayEvent &&
-                            playerAvatar.AwayEvent.Type == AwayEvent.Types.AwayEventType.SLUMBER &&
-                            playerAvatar.AwayEvent.HasTimestamp)
+                    //Check if the player has a SLUMBER away event & a timestamp that's older than the oldest permitted, calculated above
+                    if (playerAvatar != null && playerAvatar.HasAwayEvent &&
+                        playerAvatar.AwayEvent.Type == AwayEvent.Types.AwayEventType.SLUMBER &&
+                        playerAvatar.AwayEvent.HasTimestamp)
+                    {
+
+                        //There's an internal SleepingAvatar.Close method that takes a ulong for the playerID
+                        SleepingAvatar.TransientData transientData = SleepingAvatar.Close(id);
+                        //MethodInfo info = typeof (SleepingAvatar).GetMethod("Close", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+                        //SleepingAvatar.TransientData transientData = (SleepingAvatar.TransientData) info.Invoke(null, new object[] {id});
+
+                        // Loom.QueueOnMainThread might be needed here, unsure if this is a sensitive function...
+                        // If needed make a list later, then save it all together on the main thread.
+                        if (transientData.exists)
                         {
-
-                            //There's an internal SleepingAvatar.Close method that takes a ulong for the playerID
-                            SleepingAvatar.TransientData transientData = SleepingAvatar.Close(id);
-                            //MethodInfo info = typeof (SleepingAvatar).GetMethod("Close", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
-                            //SleepingAvatar.TransientData transientData = (SleepingAvatar.TransientData) info.Invoke(null, new object[] {id});
-
-                            if (transientData.exists)
-                            {
-                                transientData.AdjustIncomingAvatar(ref playerAvatar);
-                                NetUser.SaveAvatar(id, ref playerAvatar);
-                            }
-                            if (Debug)
-                            {
-                                Logger.Log("[Sleepers] Sleeper: " + id + " should be removed.");
-                            }
-                            idstoremove.Add(id);
+                            transientData.AdjustIncomingAvatar(ref playerAvatar);
+                            NetUser.SaveAvatar(id, ref playerAvatar);
                         }
+
+                        if (Debug)
+                        {
+                            Logger.Log("[Sleepers] Sleeper: " + id + " should be removed.");
+                        }
+                        idstoremove.Add(id);
                     }
                 }
             }
+
             foreach (var x in idstoremove)
             {
-                if (data.ContainsKey(x)) { data.Remove(x); }
-                if (data2.ContainsKey(x)) { data2.Remove(x); }
+                if (Data.ContainsKey(x)) { Data.Remove(x); }
             }
+
             _timer = new Timer(timerElapse);
             _timer.Elapsed += RunC;
             _timer.Start();
