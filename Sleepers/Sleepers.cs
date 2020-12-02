@@ -14,7 +14,7 @@ namespace Sleepers
     {
         private static Sleepers _instance;
         public int sleeperLifeInMinutes = 5;
-        public int timerElapse = 60000;
+        public int timerElapse = 120000;
         public bool Debug = false;
         public IniParser Settings;
         public Timer _timer;
@@ -141,14 +141,33 @@ namespace Sleepers
                         playerAvatar.AwayEvent.Type == AwayEvent.Types.AwayEventType.SLUMBER &&
                         playerAvatar.AwayEvent.HasTimestamp)
                     {
+                        idstoremove.Add(id);
+                    }
+                }
+            }
+
+            Loom.QueueOnMainThread(() =>
+            {
+                foreach (ulong id in idstoremove)
+                {
+                    if (Data.ContainsKey(id))
+                    {
+                        Data.Remove(id);
+                    }
+
+                    RustProto.Avatar playerAvatar = NetUser.LoadAvatar(id);
+                    //Check if the player has a SLUMBER away event & a timestamp that's older than the oldest permitted, calculated above
+                    if (playerAvatar != null && playerAvatar.HasAwayEvent &&
+                        playerAvatar.AwayEvent.Type == AwayEvent.Types.AwayEventType.SLUMBER &&
+                        playerAvatar.AwayEvent.HasTimestamp)
+                    {
 
                         //There's an internal SleepingAvatar.Close method that takes a ulong for the playerID
                         SleepingAvatar.TransientData transientData = SleepingAvatar.Close(id);
                         //MethodInfo info = typeof (SleepingAvatar).GetMethod("Close", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
                         //SleepingAvatar.TransientData transientData = (SleepingAvatar.TransientData) info.Invoke(null, new object[] {id});
 
-                        // Loom.QueueOnMainThread might be needed here, unsure if this is a sensitive function...
-                        // If needed make a list later, then save it all together on the main thread.
+                        // Loom.QueueOnMainThread might be needed here according to a post from 2016. Damn wish i had the knowledge of that time.
                         if (transientData.exists)
                         {
                             transientData.AdjustIncomingAvatar(ref playerAvatar);
@@ -159,15 +178,9 @@ namespace Sleepers
                         {
                             Logger.Log("[Sleepers] Sleeper: " + id + " should be removed.");
                         }
-                        idstoremove.Add(id);
                     }
                 }
-            }
-
-            foreach (var x in idstoremove)
-            {
-                if (Data.ContainsKey(x)) { Data.Remove(x); }
-            }
+            });
 
             _timer = new Timer(timerElapse);
             _timer.Elapsed += RunC;
